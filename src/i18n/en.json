@@ -1,0 +1,19 @@
+{
+    "welcome": "Hello! Welcome to our store bot!",
+    "select_language": "Please select a language:",
+    "products": "Products",
+    "search": "Search",
+    "cart": "Cart",
+    "orders": "Order History",
+    "support": "Support",
+    "change_language": "Change Language",
+    "cart_empty": "Cart is empty",
+    "add_to_cart": "Add to Cart",
+    "remove_from_cart": "Remove from Cart",
+    "place_order": "Place Order",
+    "delivery_type": "Delivery Type",
+    "payment_method": "Payment Method",
+    "phone_number": "Phone Number",
+    "address": "Address",
+    "order_placed": "Order placed successfully!"
+}

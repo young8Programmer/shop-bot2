@@ -1,0 +1,19 @@
+{
+    "welcome": "Assalomu alaykum! Do‘kon botimizga xush kelibsiz!",
+    "select_language": "Iltimos, tilni tanlang:",
+    "products": "Mahsulotlar",
+    "search": "Qidiruv",
+    "cart": "Savat",
+    "orders": "Buyurtmalar tarixi",
+    "support": "Qo‘llab-quvvatlash",
+    "change_language": "Tilni o‘zgartirish",
+    "cart_empty": "Savat bo‘sh",
+    "add_to_cart": "Savatga qo‘shish",
+    "remove_from_cart": "Savatdan o‘chirish",
+    "place_order": "Buyurtma berish",
+    "delivery_type": "Yetkazib berish turi",
+    "payment_method": "To‘lov usuli",
+    "phone_number": "Telefon raqam",
+    "address": "Manzil",
+    "order_placed": "Buyurtma muvaffaqiyatli qabul qilindi!"
+}
