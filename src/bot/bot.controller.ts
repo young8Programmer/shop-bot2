@@ -39,7 +39,7 @@ export class BotController {
     private configService: ConfigService,
   ) {
     this.adminId = parseInt(this.configService.get('ADMIN_ID') || '0', 10);
-    const botToken = "942071036:AAFz_o_p2p2o-Gq-1C1YZMQSdODCHJiu2dY";
+    const botToken = "7942071036:AAFz_o_p2p2o-Gq-1C1YZMQSdODCHJiu2dY";
     if (!botToken) throw new Error('BOT_TOKEN topilmadi');
     this.bot = new TelegramBot(botToken, { polling: true });
     this.initializeBot();
