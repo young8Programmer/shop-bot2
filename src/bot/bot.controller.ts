@@ -2,6 +2,8 @@ import { Controller } from '@nestjs/common';
 import { BotService } from './bot.service';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { ConfigService } from '@nestjs/config';
+import * as i18n from 'i18n';
+import { join } from 'path';
 
 interface CustomContext {
   message?: TelegramBot.Message;
@@ -10,6 +12,7 @@ interface CustomContext {
   match?: RegExpExecArray;
   session: SessionData;
 }
+
 interface SessionData {
   step?: string;
   page?: number;
@@ -20,6 +23,7 @@ interface SessionData {
   product?: Partial<any>;
   category?: Partial<any>;
   productId?: number;
+  language?: string;
   [key: string]: any;
 }
 
@@ -39,9 +43,15 @@ export class BotController {
     private configService: ConfigService,
   ) {
     this.adminId = 5661241603;
-    const botToken = "7942071036:AAFz_o_p2p2o-Gq-1C1YZMQSdODCHJiu2dY"
+    const botToken = "7942071036:AAFz_o_p2p2o-Gq-1C1YZMQSdODCHJiu2dY";
     if (!botToken) throw new Error('BOT_TOKEN topilmadi');
     this.bot = new TelegramBot(botToken, { polling: true });
+    i18n.configure({
+      locales: ['uz', 'ru', 'en'],
+      directory: join(__dirname, 'i18n'),
+      defaultLocale: 'uz',
+      objectNotation: true,
+    });
     this.initializeBot();
   }
 
@@ -52,15 +62,16 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         let user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) {
-          await this.bot.sendMessage(ctx.chat.id, 'Ismingizni kiriting:', { reply_markup: { force_reply: true } });
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_name', locale: 'uz' }), { reply_markup: { force_reply: true } });
           ctx.session = { ...ctx.session, step: 'register_name' };
         } else {
+          ctx.session.language = user.language;
           await this.sendMainMenu(ctx);
         }
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in /start:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -71,7 +82,7 @@ export class BotController {
         if (ctx.session.step === 'register_name' && msg.text) {
           const name = msg.text;
           await this.botService.createUser(ctx.from.id.toString(), name, 'uz');
-          await this.bot.sendMessage(ctx.chat.id, 'Xush kelibsiz! Tilni tanlang:', {
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'welcome', locale: 'uz' }) + ' ' + i18n.__({ phrase: 'choose_language', locale: 'uz' }), {
             reply_markup: {
               inline_keyboard: [
                 [{ text: '🇺🇿 O‘zbek', callback_data: 'lang_uz' }],
@@ -85,7 +96,7 @@ export class BotController {
         }
       } catch (error) {
         console.error('Error in register_name:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -101,13 +112,14 @@ export class BotController {
           } else {
             user = await this.botService.updateLanguage(ctx.from.id.toString(), lang);
           }
+          ctx.session.language = lang;
           await this.sendMainMenu(ctx);
           await this.bot.answerCallbackQuery(callbackQuery.id);
           this.sessions[ctx.from.id] = ctx.session;
         }
       } catch (error) {
         console.error('Error in setLanguage:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -118,12 +130,13 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         ctx.session.page = 0;
         await this.showCategories(ctx);
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in showCategories:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -150,7 +163,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in showProducts:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -162,18 +175,19 @@ export class BotController {
         const query = match[1];
         const products = await this.botService.searchProducts(query);
         if (!products.length) {
-          await this.bot.sendMessage(ctx.chat.id, 'Hech qanday mahsulot topilmadi.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'no_products_found', locale: ctx.session.language || 'uz' }));
           return;
         }
-        let message = 'Topilgan mahsulotlar:\n';
+        let message = i18n.__({ phrase: 'found_products', locale: ctx.session.language || 'uz' }) + '\n';
         products.forEach((product, index) => {
-          message += `${index + 1}. ${product.nameUz} - ${product.price} UZS\n/add_${product.id}\n`;
+          const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof product;
+          message += `${index + 1}. ${product[nameField] || product.nameUz} - ${product.price} UZS\n/add_${product.id}\n`;
         });
         await this.bot.sendMessage(ctx.chat.id, message);
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in search:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Qidiruvda xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'search_error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -185,12 +199,13 @@ export class BotController {
         const productId = parseInt(match[1], 10);
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         await this.botService.addToCart(user.id, productId, 1);
-        await this.bot.sendMessage(ctx.chat.id, 'Mahsulot savatga qo‘shildi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'product_added', locale: ctx.session.language || 'uz' }));
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in addToCart:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -201,12 +216,13 @@ export class BotController {
         const productId = parseInt(match[1], 10);
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         await this.botService.removeFromCart(user.id, productId);
-        await this.bot.sendMessage(ctx.chat.id, 'Mahsulot savatdan o‘chirildi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'product_removed', locale: ctx.session.language || 'uz' }));
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in removeFromCart:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -219,12 +235,13 @@ export class BotController {
         if (quantity <= 0) throw new Error('Son 0 dan katta bo‘lishi kerak');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         await this.botService.updateCartQuantity(user.id, productId, quantity);
-        await this.bot.sendMessage(ctx.chat.id, 'Mahsulot soni yangilandi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'quantity_updated', locale: ctx.session.language || 'uz' }));
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in setQuantity:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -235,21 +252,23 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         const cart = await this.botService.getCart(user.id);
         if (!cart.length) {
-          await this.bot.sendMessage(ctx.chat.id, 'Savat bo‘sh.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'empty_cart', locale: ctx.session.language || 'uz' }));
           return;
         }
-        let message = 'Savat:\n';
+        let message = i18n.__({ phrase: 'cart', locale: ctx.session.language || 'uz' }) + ':\n';
         cart.forEach((item) => {
-          message += `${item.product.nameUz} - ${item.quantity} dona - ${item.product.price * item.quantity} UZS\n/remove_${item.product.id} | /set_quantity_${item.product.id} <son>\n`;
+          const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof item.product;
+          message += `${item.product[nameField] || item.product.nameUz} - ${item.quantity} ${i18n.__({ phrase: 'pieces', locale: ctx.session.language || 'uz' })} - ${item.product.price * item.quantity} UZS\n/remove_${item.product.id} | /set_quantity_${item.product.id} <${i18n.__({ phrase: 'quantity', locale: ctx.session.language || 'uz' })}>\n`;
         });
-        message += '\nBuyurtma berish: /place_order';
+        message += '\n' + i18n.__({ phrase: 'place_order', locale: ctx.session.language || 'uz' }) + ': /place_order';
         await this.bot.sendMessage(ctx.chat.id, message);
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in showCart:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -260,14 +279,15 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
-        await this.bot.sendMessage(ctx.chat.id, 'Telefon raqamingizni yuboring:', {
-          reply_markup: { keyboard: [[{ text: 'Telefon raqam yuborish', request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
+        ctx.session.language = user.language;
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_phone', locale: ctx.session.language || 'uz' }), {
+          reply_markup: { keyboard: [[{ text: i18n.__({ phrase: 'send_phone', locale: ctx.session.language || 'uz' }), request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
         });
         ctx.session.step = 'get_phone';
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in placeOrder:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -279,15 +299,15 @@ export class BotController {
           const phone = msg.contact?.phone_number;
           if (!phone) throw new Error('Telefon raqami topilmadi');
           ctx.session.phone = phone;
-          await this.bot.sendMessage(ctx.chat.id, 'Manzilingizni yuboring:', {
-            reply_markup: { keyboard: [[{ text: 'Lokatsiya yuborish', request_location: true }]], resize_keyboard: true, one_time_keyboard: true },
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_address', locale: ctx.session.language || 'uz' }), {
+            reply_markup: { keyboard: [[{ text: i18n.__({ phrase: 'send_location', locale: ctx.session.language || 'uz' }), request_location: true }]], resize_keyboard: true, one_time_keyboard: true },
           });
           ctx.session.step = 'get_location';
         }
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in getPhone:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -305,7 +325,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in getLocation:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -322,7 +342,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in setDeliveryType:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -335,9 +355,10 @@ export class BotController {
           const paymentMethod = callbackQuery.data.split('_')[1];
           const user = await this.botService.getUser(ctx.from.id.toString());
           if (!user) throw new Error('Foydalanuvchi topilmadi');
+          ctx.session.language = user.language;
           const cart = await this.botService.getCart(user.id);
           if (!cart.length) {
-            await this.bot.sendMessage(ctx.chat.id, 'Savat bo‘sh.');
+            await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'empty_cart', locale: ctx.session.language || 'uz' }));
             return;
           }
           for (const item of cart) {
@@ -351,7 +372,7 @@ export class BotController {
               paymentMethod
             );
           }
-          await this.bot.sendMessage(ctx.chat.id, 'Buyurtma qabul qilindi.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'order_placed', locale: ctx.session.language || 'uz' }));
           await this.botService.clearCart(user.id);
           ctx.session = {};
           await this.bot.answerCallbackQuery(callbackQuery.id);
@@ -359,7 +380,7 @@ export class BotController {
         }
       } catch (error) {
         console.error('Error in setPaymentMethod:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -370,20 +391,22 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
+        ctx.session.language = user.language;
         const orders = await this.botService.getOrders(user.id);
         if (!orders.length) {
-          await this.bot.sendMessage(ctx.chat.id, 'Sizda buyurtmalar yo‘q.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'no_orders', locale: ctx.session.language || 'uz' }));
           return;
         }
-        let message = 'Buyurtmalar tarixi:\n';
+        let message = i18n.__({ phrase: 'order_history', locale: ctx.session.language || 'uz' }) + ':\n';
         orders.forEach((order) => {
-          message += `${order.product.nameUz} - ${order.quantity} dona - ${order.status}\n`;
+          const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof order.product;
+          message += `${order.product[nameField] || order.product.nameUz} - ${order.quantity} ${i18n.__({ phrase: 'pieces', locale: ctx.session.language || 'uz' })} - ${order.status}\n`;
         });
         await this.bot.sendMessage(ctx.chat.id, message);
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in showOrders:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -394,12 +417,13 @@ export class BotController {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         const user = await this.botService.getUser(ctx.from.id.toString());
         if (!user) throw new Error('Foydalanuvchi topilmadi');
-        await this.bot.sendMessage(ctx.chat.id, 'Xabaringizni yuboring, admin sizga javob beradi.');
+        ctx.session.language = user.language;
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'support_message', locale: ctx.session.language || 'uz' }));
         ctx.session.step = 'support_message';
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in supportChat:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -410,14 +434,15 @@ export class BotController {
         if (ctx.session.step === 'support_message' && msg.text) {
           const user = await this.botService.getUser(ctx.from.id.toString());
           if (!user) throw new Error('Foydalanuvchi topilmadi');
+          ctx.session.language = user.language;
           await this.botService.sendMessage(user.id, this.adminId.toString(), msg.text);
-          await this.bot.sendMessage(ctx.chat.id, 'Xabaringiz yuborildi.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'message_sent', locale: ctx.session.language || 'uz' }));
           delete ctx.session.step;
           this.sessions[ctx.from.id] = ctx.session;
         }
       } catch (error) {
         console.error('Error in supportMessage:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -427,14 +452,14 @@ export class BotController {
       try {
         if (!ctx.from?.id) throw new Error('Foydalanuvchi ID topilmadi');
         if (ctx.from.id !== this.adminId) {
-          await this.bot.sendMessage(ctx.chat.id, 'Sizda admin huquqlari yo‘q.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'no_admin_rights', locale: ctx.session.language || 'uz' }));
           return;
         }
         await this.sendAdminMenu(ctx);
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in admin:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -453,13 +478,13 @@ export class BotController {
         } else if (data === 'statistics') {
           await this.showStatistics(ctx);
         } else if (data === 'broadcast') {
-          await this.bot.sendMessage(ctx.chat.id, 'Xabaringizni yuboring:');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'send_broadcast', locale: ctx.session.language || 'uz' }));
           ctx.session.step = 'broadcast';
         } else if (data === 'view_users') {
           await this.showUsers(ctx);
         } else if (data?.startsWith('add_product')) {
           ctx.session.step = 'add_product_name';
-          await this.bot.sendMessage(ctx.chat.id, 'Mahsulot nomini kiriting (UZ):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_name_uz', locale: ctx.session.language || 'uz' }));
         } else if (data?.startsWith('edit_product_')) {
           const productId = parseInt(data.split('_')[2], 10);
           ctx.session.productId = productId;
@@ -470,7 +495,7 @@ export class BotController {
           await this.showProductManagement(ctx);
         } else if (data?.startsWith('add_category')) {
           ctx.session.step = 'add_category_name';
-          await this.bot.sendMessage(ctx.chat.id, 'Kategoriya nomini kiriting (UZ):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_category_name_uz', locale: ctx.session.language || 'uz' }));
         } else if (data?.startsWith('edit_category_')) {
           const categoryId = parseInt(data.split('_')[2], 10);
           ctx.session.categoryId = categoryId;
@@ -488,7 +513,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in admin callback:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -499,49 +524,52 @@ export class BotController {
         if (ctx.from.id !== this.adminId) return;
         if (ctx.session.step === 'add_product_name' && msg.text) {
           ctx.session.product = { nameUz: msg.text, step: 'add_product_desc' };
-          await this.bot.sendMessage(ctx.chat.id, 'Tavsifni kiriting (UZ):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_desc_uz', locale: ctx.session.language || 'uz' }));
           ctx.session.step = 'add_product_desc';
         } else if (ctx.session.step === 'add_product_desc' && msg.text) {
           ctx.session.product!.descriptionUz = msg.text;
           ctx.session.step = 'add_product_name_ru';
-          await this.bot.sendMessage(ctx.chat.id, 'Mahsulot nomini kiriting (RU):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_name_ru', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_product_name_ru' && msg.text) {
           ctx.session.product!.nameRu = msg.text;
           ctx.session.step = 'add_product_desc_ru';
-          await this.bot.sendMessage(ctx.chat.id, 'Tavsifni kiriting (RU):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_desc_ru', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_product_desc_ru' && msg.text) {
           ctx.session.product!.descriptionRu = msg.text;
           ctx.session.step = 'add_product_name_en';
-          await this.bot.sendMessage(ctx.chat.id, 'Mahsulot nomini kiriting (EN):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_name_en', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_product_name_en' && msg.text) {
           ctx.session.product!.nameEn = msg.text;
           ctx.session.step = 'add_product_desc_en';
-          await this.bot.sendMessage(ctx.chat.id, 'Tavsifni kiriting (EN):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_desc_en', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_product_desc_en' && msg.text) {
           ctx.session.product!.descriptionEn = msg.text;
           ctx.session.step = 'add_product_price';
-          await this.bot.sendMessage(ctx.chat.id, 'Narxni kiriting (UZS):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_product_price', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_product_price' && msg.text) {
           ctx.session.product!.price = parseInt(msg.text, 10);
           ctx.session.step = 'add_product_category';
           const categories = await this.botService.getCategories();
-          const buttons = categories.map((cat) => [{ text: cat.nameUz, callback_data: `set_category_${cat.id}` }]);
-          await this.bot.sendMessage(ctx.chat.id, 'Kategoriyani tanlang:', { reply_markup: { inline_keyboard: buttons } });
+          const buttons = categories.map((cat) => {
+            const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof cat;
+            return [{ text: cat[nameField] || cat.nameUz, callback_data: `set_category_${cat.id}` }];
+          });
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'choose_category', locale: ctx.session.language || 'uz' }), { reply_markup: { inline_keyboard: buttons } });
         } else if (ctx.session.step === 'broadcast' && msg.text) {
           const users = await this.botService.getAllUsers();
           for (const user of users) {
             await this.bot.sendMessage(user.telegramId, msg.text);
           }
-          await this.bot.sendMessage(ctx.chat.id, 'Xabar yuborildi.');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'broadcast_sent', locale: ctx.session.language || 'uz' }));
           delete ctx.session.step;
         } else if (ctx.session.step === 'add_category_name' && msg.text) {
           ctx.session.category = { nameUz: msg.text };
           ctx.session.step = 'add_category_name_ru';
-          await this.bot.sendMessage(ctx.chat.id, 'Kategoriya nomini kiriting (RU):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_category_name_ru', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_category_name_ru' && msg.text) {
           ctx.session.category!.nameRu = msg.text;
           ctx.session.step = 'add_category_name_en';
-          await this.bot.sendMessage(ctx.chat.id, 'Kategoriya nomini kiriting (EN):');
+          await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'enter_category_name_en', locale: ctx.session.language || 'uz' }));
         } else if (ctx.session.step === 'add_category_name_en' && msg.text) {
           ctx.session.category!.nameEn = msg.text;
           await this.botService.createCategory(ctx.session.category!);
@@ -552,7 +580,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in admin message:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
 
@@ -573,7 +601,7 @@ export class BotController {
         this.sessions[ctx.from.id] = ctx.session;
       } catch (error) {
         console.error('Error in setCategory:', error);
-        await this.bot.sendMessage(ctx.chat.id, 'Xatolik yuz berdi.');
+        await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'error', locale: ctx.session.language || 'uz' }));
       }
     });
   }
@@ -581,12 +609,21 @@ export class BotController {
   private async sendMainMenu(ctx: CustomContext) {
     const user = await this.botService.getUser(ctx.from.id.toString());
     if (!user) throw new Error('Foydalanuvchi topilmadi');
-    await this.bot.sendMessage(ctx.chat.id, 'Xush kelibsiz!', {
+    ctx.session.language = user.language;
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'welcome', locale: ctx.session.language || 'uz' }), {
       reply_markup: {
         keyboard: [
-          [{ text: 'Mahsulotlar' }, { text: 'Savat' }],
-          [{ text: 'Buyurtmalar tarixi' }, { text: 'Qo‘llab-quvvatlash' }],
-          [{ text: 'Tilni o‘zgartirish' }],
+          [
+            { text: i18n.__({ phrase: 'products', locale: ctx.session.language || 'uz' }) },
+            { text: i18n.__({ phrase: 'cart', locale: ctx.session.language || 'uz' }) },
+          ],
+          [
+            { text: i18n.__({ phrase: 'order_history', locale: ctx.session.language || 'uz' }) },
+            { text: i18n.__({ phrase: 'support', locale: ctx.session.language || 'uz' }) },
+          ],
+          [
+            { text: i18n.__({ phrase: 'change_language', locale: ctx.session.language || 'uz' }) },
+          ],
         ],
         resize_keyboard: true,
       },
@@ -596,11 +633,14 @@ export class BotController {
   private async showCategories(ctx: CustomContext) {
     const categories = await this.botService.getCategories();
     if (!categories.length) {
-      await this.bot.sendMessage(ctx.chat.id, 'Kategoriyalar mavjud emas.');
+      await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'no_categories', locale: ctx.session.language || 'uz' }));
       return;
     }
-    const buttons = categories.map((cat) => [{ text: cat.nameUz, callback_data: `category_${cat.id}` }]);
-    await this.bot.sendMessage(ctx.chat.id, 'Kategoriyalar:', {
+    const buttons = categories.map((cat) => {
+      const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof cat;
+      return [{ text: cat[nameField] || cat.nameUz, callback_data: `category_${cat.id}` }];
+    });
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'categories', locale: ctx.session.language || 'uz' }), {
       reply_markup: { inline_keyboard: buttons },
     });
   }
@@ -608,58 +648,59 @@ export class BotController {
   private async showProducts(ctx: CustomContext, categoryId: number) {
     const products = await this.botService.getProducts(categoryId);
     if (!products.length) {
-      await this.bot.sendMessage(ctx.chat.id, 'Mahsulotlar mavjud emas.');
+      await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'no_products', locale: ctx.session.language || 'uz' }));
       return;
     }
     const page = ctx.session.page || 0;
     const start = page * this.ITEMS_PER_PAGE;
     const end = start + this.ITEMS_PER_PAGE;
     const paginatedProducts = products.slice(start, end);
-    let message = 'Mahsulotlar:\n';
+    let message = i18n.__({ phrase: 'products', locale: ctx.session.language || 'uz' }) + ':\n';
     paginatedProducts.forEach((product) => {
-      message += `${product.nameUz} - ${product.price} UZS\n/add_${product.id}\n`;
+      const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof product;
+      message += `${product[nameField] || product.nameUz} - ${product.price} UZS\n/add_${product.id}\n`;
     });
     const inlineKeyboard: TelegramBot.InlineKeyboardButton[][] = [];
-    if (start > 0) inlineKeyboard.push([{ text: '⬅️ Oldingi', callback_data: 'prev' }]);
-    if (end < products.length) inlineKeyboard.push([{ text: 'Keyingi ➡️', callback_data: 'next' }]);
+    if (start > 0) inlineKeyboard.push([{ text: i18n.__({ phrase: 'previous', locale: ctx.session.language || 'uz' }), callback_data: 'prev' }]);
+    if (end < products.length) inlineKeyboard.push([{ text: i18n.__({ phrase: 'next', locale: ctx.session.language || 'uz' }), callback_data: 'next' }]);
     await this.bot.sendMessage(ctx.chat.id, message, { reply_markup: { inline_keyboard: inlineKeyboard } });
   }
 
   private async showDeliveryOptions(ctx: CustomContext) {
-    await this.bot.sendMessage(ctx.chat.id, 'Yetkazib berish turini tanlang:', {
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'choose_delivery', locale: ctx.session.language || 'uz' }), {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Yetkazib berish', callback_data: 'delivery' }],
-          [{ text: 'Olib ketish', callback_data: 'pickup' }],
+          [{ text: i18n.__({ phrase: 'delivery', locale: ctx.session.language || 'uz' }), callback_data: 'delivery' }],
+          [{ text: i18n.__({ phrase: 'pickup', locale: ctx.session.language || 'uz' }), callback_data: 'pickup' }],
         ],
       },
     });
   }
 
   private async showPaymentOptions(ctx: CustomContext) {
-    await this.bot.sendMessage(ctx.chat.id, 'To‘lov usulini tanlang:', {
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'choose_payment', locale: ctx.session.language || 'uz' }), {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Naqd', callback_data: 'payment_cash' }],
+          [{ text: i18n.__({ phrase: 'cash', locale: ctx.session.language || 'uz' }), callback_data: 'payment_cash' }],
           [{ text: 'Payme', callback_data: 'payment_payme' }],
           [{ text: 'Click', callback_data: 'payment_click' }],
           [{ text: 'Stripe', callback_data: 'payment_stripe' }],
-          [{ text: 'Joyida to‘lash', callback_data: 'payment_onspot' }],
+          [{ text: i18n.__({ phrase: 'on_spot', locale: ctx.session.language || 'uz' }), callback_data: 'payment_onspot' }],
         ],
       },
     });
   }
 
   private async sendAdminMenu(ctx: CustomContext) {
-    await this.bot.sendMessage(ctx.chat.id, 'Admin paneli:', {
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'admin_panel', locale: ctx.session.language || 'uz' }), {
       reply_markup: {
         inline_keyboard: [
-          [{ text: 'Mahsulotlar boshqaruvi', callback_data: 'manage_products' }],
-          [{ text: 'Kategoriyalar boshqaruvi', callback_data: 'manage_categories' }],
-          [{ text: 'Buyurtmalar ro‘yxati', callback_data: 'view_orders' }],
-          [{ text: 'Statistika', callback_data: 'statistics' }],
-          [{ text: 'Xabarnoma', callback_data: 'broadcast' }],
-          [{ text: 'Foydalanuvchilar', callback_data: 'view_users' }],
+          [{ text: i18n.__({ phrase: 'manage_products', locale: ctx.session.language || 'uz' }), callback_data: 'manage_products' }],
+          [{ text: i18n.__({ phrase: 'manage_categories', locale: ctx.session.language || 'uz' }), callback_data: 'manage_categories' }],
+          [{ text: i18n.__({ phrase: 'view_orders', locale: ctx.session.language || 'uz' }), callback_data: 'view_orders' }],
+          [{ text: i18n.__({ phrase: 'statistics', locale: ctx.session.language || 'uz' }), callback_data: 'statistics' }],
+          [{ text: i18n.__({ phrase: 'broadcast', locale: ctx.session.language || 'uz' }), callback_data: 'broadcast' }],
+          [{ text: i18n.__({ phrase: 'view_users', locale: ctx.session.language || 'uz' }), callback_data: 'view_users' }],
         ],
       },
     });
@@ -667,60 +708,65 @@ export class BotController {
 
   private async showProductManagement(ctx: CustomContext) {
     const products = await this.botService.getAllProducts();
-    let message = 'Mahsulotlar:\n';
+    let message = i18n.__({ phrase: 'products', locale: ctx.session.language || 'uz' }) + ':\n';
     products.forEach((product) => {
-      message += `${product.nameUz} - ${product.price} UZS\n/edit_product_${product.id} | /delete_product_${product.id}\n`;
+      const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof product;
+      message += `${product[nameField] || product.nameUz} - ${product.price} UZS\n/edit_product_${product.id} | /delete_product_${product.id}\n`;
     });
-    message += '\nYangi mahsulot qo‘shish: /add_product';
-    await this.bot.sendMessage(ctx.chat.id, message, { reply_markup: { inline_keyboard: [[{ text: 'Yangi mahsulot qo‘shish', callback_data: 'add_product' }]] } });
+    message += '\n' + i18n.__({ phrase: 'add_new_product', locale: ctx.session.language || 'uz' }) + ': /add_product';
+    await this.bot.sendMessage(ctx.chat.id, message, { reply_markup: { inline_keyboard: [[{ text: i18n.__({ phrase: 'add_product', locale: ctx.session.language || 'uz' }), callback_data: 'add_product' }]] } });
   }
 
   private async showEditProduct(ctx: CustomContext, productId: number) {
     const product = await this.botService.getProduct(productId);
     if (!product) throw new Error('Mahsulot topilmadi');
     ctx.session.step = 'edit_product_name';
-    await this.bot.sendMessage(ctx.chat.id, `Nomi (hozirgi: ${product.nameUz}):`, { reply_markup: { force_reply: true } });
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'edit_product_name', locale: ctx.session.language || 'uz' }) + ` (hozirgi: ${product.nameUz}):`, { reply_markup: { force_reply: true } });
     ctx.session.product = product;
     this.sessions[ctx.from.id] = ctx.session;
   }
 
   private async showCategoryManagement(ctx: CustomContext) {
     const categories = await this.botService.getCategories();
-    let message = 'Kategoriyalar:\n';
+    let message = i18n.__({ phrase: 'categories', locale: ctx.session.language || 'uz' }) + ':\n';
     categories.forEach((cat) => {
-      message += `${cat.nameUz}\n/edit_category_${cat.id} | /delete_category_${cat.id}\n`;
+      const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof cat;
+      message += `${cat[nameField] || cat.nameUz}\n/edit_category_${cat.id} | /delete_category_${cat.id}\n`;
     });
-    message += '\nYangi kategoriya qo‘shish: /add_category';
-    await this.bot.sendMessage(ctx.chat.id, message, { reply_markup: { inline_keyboard: [[{ text: 'Yangi kategoriya qo‘shish', callback_data: 'add_category' }]] } });
+    message += '\n' + i18n.__({ phrase: 'add_new_category', locale: ctx.session.language || 'uz' }) + ': /add_category';
+    await this.bot.sendMessage(ctx.chat.id, message, { reply_markup: { inline_keyboard: [[{ text: i18n.__({ phrase: 'add_category', locale: ctx.session.language || 'uz' }), callback_data: 'add_category' }]] } });
   }
 
   private async showEditCategory(ctx: CustomContext, categoryId: number) {
     const category = await this.botService.getCategory(categoryId);
     if (!category) throw new Error('Kategoriya topilmadi');
     ctx.session.step = 'edit_category_name';
-    await this.bot.sendMessage(ctx.chat.id, `Nomi (hozirgi: ${category.nameUz}):`, { reply_markup: { force_reply: true } });
+    await this.bot.sendMessage(ctx.chat.id, i18n.__({ phrase: 'edit_category_name', locale: ctx.session.language || 'uz' }) + ` (hozirgi: ${category.nameUz}):`, { reply_markup: { force_reply: true } });
     ctx.session.category = category;
     this.sessions[ctx.from.id] = ctx.session;
   }
 
   private async showOrdersAdmin(ctx: CustomContext) {
     const orders = await this.botService.getAllOrders();
-    let message = 'Buyurtmalar:\n';
+    let message = i18n.__({ phrase: 'orders', locale: ctx.session.language || 'uz' }) + ':\n';
     orders.forEach((order) => {
-      message += `${order.id}. ${order.product.nameUz} - ${order.quantity} dona - ${order.status}\n/update_order_${order.id}_new | /update_order_${order.id}_processing | /update_order_${order.id}_closed\n`;
+      const nameField = `name${(ctx.session.language || 'uz').charAt(0).toUpperCase() + (ctx.session.language || 'uz').slice(1)}` as keyof typeof order.product;
+      message += `${order.id}. ${order.product[nameField] || order.product.nameUz} - ${order.quantity} ${i18n.__({ phrase: 'pieces', locale: ctx.session.language || 'uz' })} - ${order.status}\n/update_order_${order.id}_new | /update_order_${order.id}_processing | /update_order_${order.id}_closed\n`;
     });
     await this.bot.sendMessage(ctx.chat.id, message);
   }
 
   private async showStatistics(ctx: CustomContext) {
     const stats = await this.botService.getStatistics();
-    const message = `Statistika:\nSo‘ngi 7 kun: ${stats.last7DaysOrders} buyurtma, ${stats.last7DaysRevenue} UZS\nSo‘ngi oy: ${stats.last30DaysOrders} buyurtma, ${stats.last30DaysRevenue} UZS`;
+    const message = i18n.__({ phrase: 'statistics', locale: ctx.session.language || 'uz' }) + ':\n' +
+      i18n.__({ phrase: 'last_7_days', locale: ctx.session.language || 'uz' }) + `: ${stats.last7DaysOrders} ${i18n.__({ phrase: 'orders', locale: ctx.session.language || 'uz' })}, ${stats.last7DaysRevenue} UZS\n` +
+      i18n.__({ phrase: 'last_30_days', locale: ctx.session.language || 'uz' }) + `: ${stats.last30DaysOrders} ${i18n.__({ phrase: 'orders', locale: ctx.session.language || 'uz' })}, ${stats.last30DaysRevenue} UZS`;
     await this.bot.sendMessage(ctx.chat.id, message);
   }
 
   private async showUsers(ctx: CustomContext) {
     const users = await this.botService.getAllUsers();
-    let message = 'Foydalanuvchilar:\n';
+    let message = i18n.__({ phrase: 'users', locale: ctx.session.language || 'uz' }) + ':\n';
     users.forEach((user) => {
       message += `${user.firstName} (${user.telegramId}) - ${user.language}\n`;
     });
