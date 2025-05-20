@@ -2,9 +2,6 @@ import { Controller } from '@nestjs/common';
 import { BotService } from './bot.service';
 import * as TelegramBot from 'node-telegram-bot-api';
 import { ConfigService } from '@nestjs/config';
-import * as dotenv from 'dotenv';
-dotenv.config();
-
 
 interface CustomContext {
   message?: TelegramBot.Message;
@@ -41,8 +38,8 @@ export class BotController {
     private botService: BotService,
     private configService: ConfigService,
   ) {
-    this.adminId = parseInt(process.env.ADMIN_ID || '0', 10);
-    const botToken = process.env.BOT_TOKEN;
+    this.adminId = 5661241603;
+    const botToken = "7942071036:AAFz_o_p2p2o-Gq-1C1YZMQSdODCHJiu2dY"
     if (!botToken) throw new Error('BOT_TOKEN topilmadi');
     this.bot = new TelegramBot(botToken, { polling: true });
     this.initializeBot();
