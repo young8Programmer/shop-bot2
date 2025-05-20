@@ -1,16 +1,36 @@
 import { Injectable } from '@nestjs/common';
-import { MessageRepository } from './message.repository';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Message } from '../../entities/message.entity';
+import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class MessageService {
-  constructor(private messageRepository: MessageRepository) {}
+  constructor(
+    @InjectRepository(Message) private messageRepository: Repository<Message>,
+    @InjectRepository(User) private userRepository: Repository<User>,
+  ) {}
 
-  async create(userId: number, adminId: number, message: string) {
-    const msg = this.messageRepository.create({ user: { id: userId }, admin: { id: adminId }, message });
-    return this.messageRepository.save(msg);
+  async create(messageData: Partial<Message>): Promise<Message> {
+    const user = messageData.user ? await this.userRepository.findOneBy({ id: messageData.user.id }) : null;
+
+    if (!user) {
+      throw new Error('User topilmadi');
+    }
+
+    const newMessage = this.messageRepository.create({
+      ...messageData,
+      user: { id: user.id }, // Faqat ID bilan bog‘lash
+      adminId: messageData.adminId,
+      message: messageData.message,
+    });
+
+    return this.messageRepository.save(newMessage);
   }
 
-  async findByUser(userId: number) {
-    return this.messageRepository.find({ where: [{ user: { id: userId } }, { admin: { id: userId } }], order: { createdAt: 'ASC' } });
+  async findByUser(userId: number): Promise<Message[]> {
+    return this.messageRepository.find({
+      where: { user: { id: userId } },
+    });
   }
 }

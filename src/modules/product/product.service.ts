@@ -1,34 +1,46 @@
 import { Injectable } from '@nestjs/common';
-import { ProductRepository } from './product.repository';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { Product } from '../../entities/product.entity';
 
 @Injectable()
 export class ProductService {
-  constructor(private productRepository: ProductRepository) {}
+  constructor(
+    @InjectRepository(Product) private productRepository: Repository<Product>,
+  ) {}
+
+  async findAll(): Promise<Product[]> {
+    return this.productRepository.find({ relations: ['category'] });
+  }
 
   async findByCategory(categoryId: number): Promise<Product[]> {
-    return this.productRepository.find({ where: { category: { id: categoryId }, isActive: true } });
+    return this.productRepository.find({
+      where: { category: { id: categoryId } },
+      relations: ['category'],
+    });
   }
 
-  async create(categoryId: number, nameUz: string, nameRu: string, nameEn: string, price: number, descriptionUz: string, descriptionRu: string, descriptionEn: string, imageUrl: string): Promise<Product> {
-    const product = this.productRepository.create({ category: { id: categoryId }, nameUz, nameRu, nameEn, price, descriptionUz, descriptionRu, descriptionEn, imageUrl });
-    return this.productRepository.save(product);
+  async search(query: string): Promise<Product[]> {
+    return this.productRepository.createQueryBuilder('product')
+      .where('product.nameUz LIKE :query', { query: `%${query}%` })
+      .orWhere('product.nameRu LIKE :query', { query: `%${query}%` })
+      .orWhere('product.nameEn LIKE :query', { query: `%${query}%` })
+      .getMany();
   }
 
-  async update(id: number, nameUz: string, nameRu: string, nameEn: string, price: number, descriptionUz: string, descriptionRu: string, descriptionEn: string, imageUrl: string, isActive: boolean): Promise<Product> {
-    const product = await this.productRepository.findOne({ where: { id } });
-    if (product) {
-      product.nameUz = nameUz;
-      product.nameRu = nameRu;
-      product.nameEn = nameEn;
-      product.price = price;
-      product.descriptionUz = descriptionUz;
-      product.descriptionRu = descriptionRu;
-      product.descriptionEn = descriptionEn;
-      product.imageUrl = imageUrl;
-      product.isActive = isActive;
-      return this.productRepository.save(product);
-    }
-    throw new Error('Mahsulot topilmadi');
+  async findOne(id: number): Promise<any> {
+    return this.productRepository.findOne({
+      where: { id },
+      relations: ['category'],
+    });
+  }
+
+  async create(product: Partial<Product>): Promise<Product> {
+    const newProduct = this.productRepository.create(product);
+    return this.productRepository.save(newProduct);
+  }
+
+  async delete(id: number): Promise<void> {
+    await this.productRepository.delete(id);
   }
 }

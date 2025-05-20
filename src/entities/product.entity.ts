@@ -1,15 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Category } from './category.entity';
-import { Cart } from './cart.entity';
-import { Order } from './order.entity';
 
-@Entity('products')
+@Entity()
 export class Product {
   @PrimaryGeneratedColumn()
   id: number;
-
-  @ManyToOne(() => Category, (category) => category.products)
-  category: Category;
 
   @Column()
   nameUz: string;
@@ -19,9 +14,6 @@ export class Product {
 
   @Column()
   nameEn: string;
-
-  @Column('decimal')
-  price: number;
 
   @Column()
   descriptionUz: string;
@@ -33,17 +25,12 @@ export class Product {
   descriptionEn: string;
 
   @Column()
-  imageUrl: string;
+  price: number;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @Column({ nullable: true })
+  image?: string;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date;
-
-  @OneToMany(() => Cart, (cart) => cart.product)
-  carts: Cart[];
-
-  @OneToMany(() => Order, (order) => order.product)
-  orders: Order[];
+  @ManyToOne(() => Category, (category) => category.id, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'categoryId' })
+  category: Category;
 }

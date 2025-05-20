@@ -1,16 +1,16 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { User } from './user.entity';
 
-@Entity('messages')
+@Entity()
 export class Message {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => User, (user) => user.messages)
+  @ManyToOne(() => User, (user) => user.id)
   user: User;
 
-  @ManyToOne(() => User)
-  admin: User;
+  @Column()
+  adminId: string;
 
   @Column()
   message: string;

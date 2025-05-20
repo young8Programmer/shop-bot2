@@ -1,26 +1,33 @@
 import { Injectable } from '@nestjs/common';
-import { UserRepository } from './user.repository';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { User } from '../../entities/user.entity';
 
 @Injectable()
 export class UserService {
-  constructor(private userRepository: UserRepository) {}
+  constructor(
+    @InjectRepository(User) private userRepository: Repository<User>,
+  ) {}
 
-  async findByTelegramId(telegramId: string): Promise<User | null> {
+  async findByTelegramId(telegramId: string): Promise<any> {
     return this.userRepository.findOne({ where: { telegramId } });
   }
 
-  async create(telegramId: string, firstName: string, language: string): Promise<User> {
-    const user = this.userRepository.create({ telegramId, firstName, language });
-    return this.userRepository.save(user);
+  async create(user: Partial<User>): Promise<User> {
+    const newUser = this.userRepository.create(user);
+    return this.userRepository.save(newUser);
   }
 
-  async updateLanguage(telegramId: string, language: string): Promise<User> {
+  async updateLanguage(telegramId: string, language: string): Promise<any> {
     const user = await this.findByTelegramId(telegramId);
     if (user) {
       user.language = language;
       return this.userRepository.save(user);
     }
-    throw new Error('Foydalanuvchi topilmadi');
+    return null;
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.userRepository.find();
   }
 }
