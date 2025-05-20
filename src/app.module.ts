@@ -27,7 +27,7 @@ import { Message } from './entities/message.entity';
     I18nModule.forRoot({
       fallbackLanguage: 'uz',
       loaderOptions: {
-        path: join(__dirname, '/i18n/'),
+        path: join(process.cwd(), 'src', 'i18n'),
         watch: true,
       },
       resolvers: [
