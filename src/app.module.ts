@@ -38,7 +38,7 @@ import { Message } from './entities/message.entity';
 
     TypeOrmModule.forRoot({
       type: 'postgres',
-      url: 'postgresql://postgres:HcKaqszsvlsCeyUdpqElAHvYaQwxFzEX@nozomi.proxy.rlwy.net:22265/railway',
+      url: process.env.DATABASE_URL || 'postgresql://postgres:HcKaqszsvlsCeyUdpqElAHvYaQwxFzEX@nozomi.proxy.rlwy.net:22265/railway',
       entities: [User, Category, Product, Cart, Order, Message],
       synchronize: true,
       ssl: {
