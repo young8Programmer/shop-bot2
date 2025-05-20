@@ -1,16 +1,33 @@
 import { Module } from '@nestjs/common';
-import { BotController } from './bot.controller';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { BotService } from './bot.service';
-import { UserModule } from '../modules/user/user.module';
-import { CategoryModule } from '../modules/category/category.module';
-import { ProductModule } from '../modules/product/product.module';
-import { CartModule } from '../modules/cart/cart.module';
-import { OrderModule } from '../modules/order/order.module';
-import { MessageModule } from '../modules/message/message.module';
+import { BotController } from './bot.controller';
+import { User } from '../entities/user.entity';
+import { Category } from '../entities/category.entity';
+import { Product } from '../entities/product.entity';
+import { Cart } from '../entities/cart.entity';
+import { Order } from '../entities/order.entity';
+import { Message } from '../entities/message.entity';
+import { UserService } from '../modules/user/user.service';
+import { CategoryService } from '../modules/category/category.service';
+import { ProductService } from '../modules/product/product.service';
+import { CartService } from '../modules/cart/cart.service';
+import { OrderService } from '../modules/order/order.service';
+import { MessageService } from '../modules/message/message.service';
 
 @Module({
-  imports: [UserModule, CategoryModule, ProductModule, CartModule, OrderModule, MessageModule],
+  imports: [
+    TypeOrmModule.forFeature([User, Category, Product, Cart, Order, Message]),
+  ],
   controllers: [BotController],
-  providers: [BotService],
+  providers: [
+    BotService,
+    UserService,
+    CategoryService,
+    ProductService,
+    CartService,
+    OrderService,
+    MessageService,
+  ],
 })
 export class BotModule {}
