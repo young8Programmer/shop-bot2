@@ -46,7 +46,6 @@ export class BotController {
   }
 
   private initializeBot() {
-    // /start komandasi
     this.bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
       const ctx: CustomContext = { message: msg, chat: msg.chat, from: msg.from!, session: this.sessions[msg.from?.id || 0] || {} };
       try {
@@ -65,7 +64,6 @@ export class BotController {
       }
     });
 
-    // Ismni ro‘yxatdan o‘tkazish
     this.bot.on('message', async (msg: TelegramBot.Message) => {
       const ctx: CustomContext = { message: msg, chat: msg.chat, from: msg.from!, session: this.sessions[msg.from?.id || 0] || {} };
       try {
@@ -91,7 +89,6 @@ export class BotController {
       }
     });
 
-    // Tilni o‘zgartirish
     this.bot.on('callback_query', async (callbackQuery: TelegramBot.CallbackQuery) => {
       const ctx: CustomContext = { chat: callbackQuery.message!.chat, from: callbackQuery.from, session: this.sessions[callbackQuery.from.id] || {} };
       try {
