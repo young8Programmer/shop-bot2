@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config'; // ConfigModule qo‘shildi
 import { BotModule } from './bot/bot.module';
 import { UserModule } from './modules/user/user.module';
 import { CategoryModule } from './modules/category/category.module';
@@ -22,18 +23,21 @@ i18n.configure({
   defaultLocale: 'uz',
   objectNotation: true,
 });
-
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
     TypeOrmModule.forRoot({
-      type: "postgres",
-      url: "postgresql://postgres:HcKaqszsvlsCeyUdpqElAHvYaQwxFzEX@nozomi.proxy.rlwy.net:22265/railway",
+      type: 'postgres',
+      url: 'postgresql://postgres:HcKaqszsvlsCeyUdpqElAHvYaQwxFzEX@nozomi.proxy.rlwy.net:22265/railway',
       entities: [User, Category, Product, Cart, Order, Message],
       synchronize: true,
-      ssl: 
-      {
-        rejectUnauthorized: false
-      }
+      ssl: {
+        rejectUnauthorized: false,
+      },
+      autoLoadEntities: true,
     }),
     BotModule,
     UserModule,

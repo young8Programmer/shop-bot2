@@ -14,10 +14,12 @@ import { ProductService } from '../modules/product/product.service';
 import { CartService } from '../modules/cart/cart.service';
 import { OrderService } from '../modules/order/order.service';
 import { MessageService } from '../modules/message/message.service';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, Category, Product, Cart, Order, Message]),
+    ConfigModule
   ],
   controllers: [BotController],
   providers: [
